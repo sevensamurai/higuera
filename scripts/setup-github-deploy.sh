@@ -18,6 +18,18 @@ SA="$SA_NAME@$PROJECT_ID.iam.gserviceaccount.com"
 POOL=github
 PROVIDER=github
 
+# IAM is eventually consistent: a service account created a moment ago can be reported as "does not
+# exist" for several seconds. Retry such calls instead of failing.
+retry() {
+  local n
+  for n in 1 2 3 4 5 6 7 8; do
+    if "$@"; then return 0; fi
+    echo "   (waiting for Google to catch up, attempt $n of 8)" >&2
+    sleep 5
+  done
+  "$@"
+}
+
 PROJECT_NUMBER="$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')"
 echo "Project $PROJECT_ID ($PROJECT_NUMBER), repository $REPO"
 
@@ -37,7 +49,7 @@ for role in \
   roles/firebase.viewer \
   roles/serviceusage.serviceUsageConsumer \
   roles/serviceusage.apiKeysViewer; do
-  gcloud projects add-iam-policy-binding "$PROJECT_ID" --member "serviceAccount:$SA" --role "$role" \
+  retry gcloud projects add-iam-policy-binding "$PROJECT_ID" --member "serviceAccount:$SA" --role "$role" \
     --condition None --quiet >/dev/null
   echo "   granted $role"
 done
@@ -57,7 +69,7 @@ if ! gcloud iam workload-identity-pools providers describe "$PROVIDER" --project
 fi
 
 echo "→ Allowing $REPO to act as the service account"
-gcloud iam service-accounts add-iam-policy-binding "$SA" --project "$PROJECT_ID" \
+retry gcloud iam service-accounts add-iam-policy-binding "$SA" --project "$PROJECT_ID" \
   --role roles/iam.workloadIdentityUser \
   --member "principalSet://iam.googleapis.com/projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/$POOL/attribute.repository/$REPO" \
   --quiet >/dev/null

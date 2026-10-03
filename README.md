@@ -130,6 +130,7 @@ npm install
 npm run emulators          # terminal 1: Auth + Firestore emulators, UI at http://127.0.0.1:4000
 npm run dev:emu            # terminal 2: app at http://localhost:5173
 npm run dev:lan            # emulators + dev server open to your local network (see below)
+npm run dev:lan:live       # the same, but connected to the real Firebase project (see below)
 npm run test:rules         # security rules tests (starts its own emulator)
 npm run test:unit          # timezone conversion and translation-parity tests (no emulator needed)
 npm run test:e2e           # browser walk-through (researcher in Santiago, client in Madrid, then Spanish);
@@ -157,6 +158,25 @@ Starts the emulators and the dev server together and prints an address such as
 - The installable-app features (offline, "add to home screen") need HTTPS, so they aren't available at
   a plain `http://` IP address. Everything else works.
 - If another device can't connect, the machine's firewall may be blocking ports 5173, 8080 and 9099.
+
+#### Same, against the real Firebase project
+
+```bash
+npm run dev:lan:live
+```
+
+Serves the dev server to the network using the config in `.env.local`: **real data, real Google
+sign-in**. Firebase only starts a sign-in from a domain *name* on its authorized list, never a bare IP, so
+the script prints an address like `http://192-168-0-191.sslip.io:5173/`. (sslip.io is a public DNS
+service that maps `a-b-c-d.sslip.io` to the IP `a.b.c.d`.) One-time, add that name under Firebase
+console → Authentication → Settings → **Authorized domains**.
+
+- The name embeds the machine's IP, so if the IP changes (DHCP), authorize the new name too.
+- Remove names you no longer use. Anyone who can serve a page from that same private IP on another
+  network could present it as an authorized sign-in origin, so don't leave stale ones.
+- Some routers refuse to resolve public names to private addresses ("DNS rebinding protection"); if
+  the name doesn't load, allow `sslip.io` in the router or use the IP address for browsing and the
+  `localhost` address on this machine for sign-in.
 
 ## Deploying to Firebase (free)
 

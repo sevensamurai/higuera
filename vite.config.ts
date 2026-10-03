@@ -13,6 +13,9 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
     },
+    // `npm run dev:lan:live` serves a <ip>.sslip.io name that resolves to this machine's LAN address
+    // (Firebase refuses bare IPs as sign-in domains). Vite blocks unknown host names unless listed.
+    server: { allowedHosts: ['.sslip.io'] },
     // The Firestore SDK alone is ~700 kB minified; it is precached by the service worker after first load.
     build: { chunkSizeWarningLimit: 800 },
     plugins: [

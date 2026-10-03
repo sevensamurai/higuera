@@ -14,7 +14,8 @@
     "test:rules": "firebase emulators:exec --only firestore --project demo-tutor-booking \"node --test tests/rules.test.mjs\"",
     "test:unit": "node --test tests/timezone.test.ts tests/i18n.test.ts",
     "test:e2e": "firebase emulators:exec --only auth,firestore --project demo-tutor-booking \"bash tests/run-e2e.sh\"",
-    "dev:lan": "bash scripts/dev-lan.sh"
+    "dev:lan": "bash scripts/dev-lan.sh",
+    "dev:lan:live": "bash scripts/dev-lan.sh live"
   },
   "dependencies": {
     "@fontsource-variable/figtree": "^5.3.0",
