@@ -1,6 +1,6 @@
 # Family Research
 
-A small PWA for a freelance genealogy researcher. Clients book consultations or research time,
+A small PWA for a freelance genealogy researcher. Clients book a consultation, or a session continuing a case,
 follow their research question, the checklist of things they've been asked to gather, notes and
 findings, and see what's paid. Built with Vue 3, TypeScript and Vite, and
 backed entirely by Firebase on the **Spark (free) plan**: Hosting, Authentication (Google) and
@@ -10,7 +10,8 @@ Firestore. There is no server code. Every rule the browser can't be trusted to e
 ## Languages: Spanish and English
 
 The UI is fully bilingual. **Spanish is the default** (the business is in Chile); a browser set to
-English starts in English, and the **ES / EN** button in the header switches at any time.
+English starts in English. The **ES / EN** button in the header switches at any time, and signed-in
+users also find it on the **Settings** page (gear in the header).
 
 - **Remembered:** on the device, and on the account (`users/{uid}.locale`), so another device, and
   future notification emails, use the same language. A choice made on this device wins; otherwise the
@@ -28,17 +29,21 @@ English starts in English, and the **ES / EN** button in the header switches at 
 
 ## Look and language
 
-The design is **warm modern**, chosen to avoid the usual genealogy-site look (parchment, sepia,
-family-tree and leaf motifs, heritage greens, ornate serifs).
+The design is **charcoal + warm sand**, chosen to avoid the usual genealogy-site look (parchment, sepia,
+family-tree and leaf motifs, heritage greens, ornate serifs). Palette:
+[coolors.co/palette/264653-2a9d8f-e9c46a-f4a261-e76f51](https://coolors.co/palette/264653-2a9d8f-e9c46a-f4a261-e76f51).
 
-- **Colour:** plum (`--accent`) for actions, apricot (`--apricot`) for warmth and progress, on warm
-  neutrals. It never uses pure white or black. All tokens are at the top of `src/style.css`, with a
-  light and a dark set; every text pairing meets WCAG AA.
+- **Colour:** a charcoal-blue band (`--band`) frames every page as header and footer, edged with a
+  stripe of the other four colours; verdigris (`--accent`) for actions, deepened in light mode for
+  contrast; sandy brown (`--highlight`) for highlights and progress, on warm neutrals. It never uses
+  pure white or black. All tokens are at the top of `src/style.css`, with a light and a dark set;
+  every text pairing meets WCAG AA.
 - **Type:** Fraunces (soft cut) for headings and Figtree for text, both bundled with the app, so
   no Google Fonts requests and they work offline. The base size is 17px for comfortable reading.
-- **Theme:** Auto (follows the device) / Light / Dark, from the button in the header. The choice is
-  remembered per device and applied before the page paints, so there is no flash.
-- **Mark:** two overlapping circles (two people, two generations) on plum.
+- **Theme:** Light / Dark, from the button in the header. Until a choice is made it follows the device,
+  and is light when the device states no preference. The choice is remembered per device and applied
+  before the page paints, so there is no flash.
+- **Mark:** two overlapping circles (two people, two generations) in jasmine and burnt peach on charcoal blue.
 - **Words:** Researcher and Client; research question; checklist; notes; findings. All UI text is
   in `src/i18n/`; the business name is in `src/copy.ts`. Set the real
   business name with `VITE_APP_NAME` in `.env.local`; it's used for the header, the tab title and
@@ -84,20 +89,32 @@ There are two lanes.
   researcher can tick an item off; clients see the status.
 - **Home**: edit the public overview text.
 
+## Cases
+
+A research question often takes several sessions. When booking, a client chooses **Consultation** (a
+new question) or **Continuing a case**, then picks one of their cases, or "another case" for one
+that started before the app. A finished or confirmed session also offers **Book a follow-up session**.
+
+A case is not a separate record: a follow-up stores `caseId`, the id of the case's first booking, and
+the rules accept only a case of the client's own. Session pages list the case's sessions ("session 2
+of 3"), and the researcher's Requests page marks follow-ups with a link to the first session.
+
 ## Timezones
 
 The researcher and the clients are usually in different timezones, so every time is shown in the
 viewer's own zone:
 
-- **Researcher:** sets their zone once on the Availability page; it's saved in `content/settings`.
+- **Researcher:** sets their zone once on the **Settings** page; it's saved in `content/settings`.
   Availability is typed in that zone ("Sat 14:00–18:00" means the researcher's 14:00), even from a
   laptop that is on another zone while travelling. All admin screens show times in it.
 - **Client:** sees open slots, grouped by *their* calendar day, in their device's zone. A researcher's
-  Saturday evening can be a client's Sunday morning. They can pin a different zone (saved to their
-  profile), and the app points out when the device's zone differs from the pinned one.
+  Saturday evening can be a client's Sunday morning. They can pin a different zone on the **Settings** page
+  (saved to their profile), and the app points out when the device's zone differs from the pinned one.
 - **Requests and sessions** record the client's zone, so the researcher also sees "their time: Sun ·
   06:00–07:00 · Madrid (GMT+1)" next to each option.
 - **Due dates** are plain calendar dates (`yyyy-mm-dd`), the same day for everyone.
+
+Pages that list times carry one small line naming the zone in use, linking to Settings.
 
 Slots are stored as UTC instants, so each viewer's display handles DST on its own.
 `src/timezone.ts` converts between wall-clock times and instants using `Intl` only. Its tests
@@ -112,12 +129,13 @@ Slots are stored as UTC instants, so each viewer's display handles DST on its ow
 | `content/overview` | admin | Public landing text, `{ es: {title, body}, en: {title, body} }`. |
 | `content/settings` | admin | `tutorTimeZone`. |
 | `slots/{id}` | admin | `start`, `durationMin`, `status: open\|booked`, `bookingId`. |
-| `bookings/{id}` | user creates, admin manages | `title` (goal, 1–120 chars), `options[1..3]`, `userTimeZone`, `status`, `confirmed`, `payment`, `summary`. |
+| `bookings/{id}` | user creates, admin manages | `title` (goal, 1–120 chars), `kind`, `caseId` (follow-ups: the case's first booking, the client's own), `options[1..3]`, `userTimeZone`, `status`, `confirmed`, `payment`, `summary`. |
 | `bookings/{id}/notes/{id}` | researcher and that client | Append-only thread: `authorId`, `role: tutor\|student`, `text`; authors and the researcher may delete. |
 | `tasks/{id}` | admin | `userId`, `bookingId` (session, optional), `title`, `details`, `dueDate` (yyyy-mm-dd), `status: open\|done`. |
 
 Stored field names and values (`tutorTimeZone`, `role: tutor|student`, `kind: tutoring|freelance`) keep
-their original names so existing data stays valid; only the labels changed.
+their original names so existing data stays valid; only the labels changed. `kind: case` marks a session
+continuing a case; `freelance` (research time) is no longer offered when booking but still displays.
 
 Queries filter on a single field and sort on the client, so no composite indexes are needed.
 
@@ -223,7 +241,7 @@ so only green code reaches it.
 
 ### After the first deploy
 1. Sign in once on the site, then create `admins/{your uid}` in the Firestore console (the UID is
-   under Authentication → Users). Reload, open **Availability** and confirm your timezone.
+   under Authentication → Users). Reload, open **Settings** (gear in the header) and confirm your timezone.
 2. If you add a custom domain, add it under **Authentication → Settings → Authorized domains**.
 
 ### Deploying by hand (fallback)

@@ -58,10 +58,14 @@ await fetch(`${FS}/admins/${tutorUid}`, {
 await tutor.reload()
 await tutor.waitForSelector('h1:has-text("Dashboard")')
 
-step('tutor confirms timezone and opens 14:00–17:00 Santiago, 10 days out')
+step('tutor confirms timezone in Settings and opens 14:00–17:00 Santiago, 10 days out')
 await tutor.goto(BASE + '/admin/availability')
+await tutor.click('a:has-text("Confirm it in Settings")')
+await tutor.waitForURL(BASE + '/settings')
 await tutor.click('button:has-text("Confirm")')
 await tutor.waitForSelector('text=Not saved yet', { state: 'detached' })
+await shot(tutor, '00-tutor-settings')
+await tutor.goto(BASE + '/admin/availability')
 // Always a future day (10 days out), so the test doesn't expire.
 const slotDay = new Date(Date.now() + 10 * 86_400_000).toISOString().slice(0, 10)
 await tutor.fill('input[type=date]', slotDay)
@@ -142,10 +146,11 @@ for (const [page, name] of [[student, 'student'], [tutor, 'tutor']]) {
   await page.waitForSelector('.note')
   await shot(page, `11-${name}-session-dark`)
 }
-const themes = []
-for (let i = 0; i < 3; i++) {
+// No saved choice yet, so the dark device setting applies; each click then flips and saves.
+const themes = [await student.evaluate(() => document.documentElement.dataset.theme)]
+for (let i = 0; i < 2; i++) {
   await student.click('button[aria-label^="Theme"]')
-  themes.push(await student.evaluate(() => document.documentElement.dataset.theme ?? 'auto'))
+  themes.push(await student.evaluate(() => document.documentElement.dataset.theme))
 }
 console.log('  theme toggle cycles:', themes.join(' → '))
 await student.click('button[aria-label^="Theme"]') // → light
@@ -177,6 +182,47 @@ console.log('  Spanish kept after reload:', await student.evaluate(() => documen
 await student.click('button[aria-label="Switch to English"]')
 await student.waitForFunction(() => document.documentElement.lang === 'en')
 console.log('  and back to English:', await student.locator('h2').first().innerText())
+
+step('student pins a timezone and a language in Settings, then follows the device again')
+await student.click('a[aria-label="Settings"]')
+await student.waitForSelector('h1:has-text("Settings")')
+await student.click('[role=combobox]')
+await student.keyboard.type('santi')
+console.log('  timezone search "santi":', await student.locator('[role=option] strong').allInnerTexts())
+await student.keyboard.type('ago chile')
+await student.keyboard.press('Enter')
+console.log('  picked:', await student.inputValue('[role=combobox]'))
+await student.click('button:has-text("Save")')
+await student.waitForSelector('text=Use device time')
+await shot(student, '16-student-settings')
+await student.goto(BASE + '/sessions')
+console.log('  sessions page zone line:', await student.locator('.tz-note').innerText())
+await student.goto(BASE + '/settings')
+await student.click('button:has-text("Español")')
+await student.waitForFunction(() => document.documentElement.lang === 'es')
+await student.click('button:has-text("Usar la hora del dispositivo")')
+await student.waitForSelector('text=Siguiendo a este dispositivo')
+await student.click('button:has-text("English")')
+await student.waitForFunction(() => document.documentElement.lang === 'en')
+
+step('student continues the case with a follow-up session; the researcher sees it as one')
+await student.goto(sessionUrl)
+await student.click('a:has-text("Book a follow-up session")')
+await student.waitForSelector('.chip')
+console.log('  book page preselects:', await student.locator('.segmented button.on').innerText(), '·', await student.locator('select >> nth=0').evaluate((s) => s.selectedOptions[0].text))
+console.log('  question prefilled:', await student.inputValue('input[maxlength="120"]'))
+await student.click('.chip:not([disabled]) >> nth=0')
+await shot(student, '17-student-follow-up')
+await student.click('button:has-text("Request")')
+await student.waitForURL(BASE + '/')
+await tutor.goto(BASE + '/admin/requests')
+await tutor.waitForSelector('.badge.warn') // the tutor is still in Spanish here
+console.log('  request shows:', (await tutor.locator('p:has(.badge.warn)').innerText()).replace(/\s+/g, ' '))
+await shot(tutor, '18-tutor-follow-up-request')
+await student.goto(sessionUrl)
+await student.waitForSelector('.case-list li >> nth=1')
+console.log('  case on the first session:', (await student.locator('.case-list').innerText()).replace(/\n/g, ' | '))
+await shot(student, '19-student-case')
 
 await browser.close()
 console.log(errors.length ? `console errors:\n${errors.join('\n')}` : 'no console errors')

@@ -28,6 +28,7 @@ function fromDoc(d: DocumentSnapshot): Booking {
     userName: x.userName,
     userEmail: x.userEmail,
     userTimeZone: x.userTimeZone,
+    caseId: x.caseId,
     kind: x.kind,
     title: x.title ?? '',
     notes: x.notes ?? '',
@@ -52,6 +53,8 @@ export async function requestBooking(input: {
   userName: string
   userEmail: string
   userTimeZone: string
+  /** Set when this request continues an existing case. */
+  caseId?: string
   kind: BookingKind
   title: string
   notes: string
@@ -64,6 +67,7 @@ export async function requestBooking(input: {
     userName: input.userName,
     userEmail: input.userEmail,
     userTimeZone: input.userTimeZone,
+    ...(input.caseId ? { caseId: input.caseId } : {}),
     kind: input.kind,
     title: input.title.trim(),
     notes: input.notes.trim(),

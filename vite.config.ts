@@ -30,8 +30,8 @@ export default defineConfig(({ mode }) => {
           // Manifests can't vary by user language; Spanish, the business's main language.
           description: 'Reserva sesiones y sigue tu investigación familiar: tareas, hallazgos y pagos.',
           lang: 'es',
-          theme_color: '#7a3b69',
-          background_color: '#fbf8f5',
+          theme_color: '#264653',
+          background_color: '#f7f4ee',
           display: 'standalone',
           start_url: '/',
           icons: [

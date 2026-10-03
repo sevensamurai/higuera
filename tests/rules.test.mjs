@@ -95,6 +95,13 @@ describe('bookings', () => {
     await assertFails(setDoc(doc(a, 'bookings', 'xu'), untitled))
     await assertFails(setDoc(doc(db(null), 'bookings', 'xa'), booking()))
   })
+  test('a follow-up may continue only a case of the same user', async () => {
+    await assertSucceeds(setDoc(doc(db(ALICE), 'bookings', 'f1'), booking({ kind: 'case', caseId: 'a-confirmed' })))
+    await assertSucceeds(setDoc(doc(db(ALICE), 'bookings', 'f0'), booking({ kind: 'case' }))) // a case from before the app
+    await assertFails(setDoc(doc(db(ALICE), 'bookings', 'f2'), booking({ caseId: 'b1' })))
+    await assertFails(setDoc(doc(db(ALICE), 'bookings', 'f3'), booking({ caseId: 'no-such-booking' })))
+    await assertFails(setDoc(doc(db(ALICE), 'bookings', 'f4'), booking({ caseId: 42 })))
+  })
   test('users see only their own bookings', async () => {
     const a = db(ALICE)
     await assertSucceeds(getDoc(doc(a, 'bookings', 'a1')))

@@ -61,11 +61,16 @@ service cloud.firestore {
         && request.resource.data.options is list
         && request.resource.data.options.size() >= 1
         && request.resource.data.options.size() <= 3
-        && request.resource.data.kind in ['tutoring', 'freelance']
+        && request.resource.data.kind in ['tutoring', 'case', 'freelance']
         && request.resource.data.title is string
         && request.resource.data.title.size() >= 1
         && request.resource.data.title.size() <= 120
         && optionalString(request.resource.data, 'userTimeZone')
+        // A follow-up names its case by the first booking's id, which must be this user's own.
+        && (!('caseId' in request.resource.data) || (
+          request.resource.data.caseId is string
+          && get(/databases/$(database)/documents/bookings/$(request.resource.data.caseId)).data.userId == request.auth.uid
+        ))
         && !('confirmed' in request.resource.data)
         && !('summary' in request.resource.data);
 

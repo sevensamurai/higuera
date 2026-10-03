@@ -4,7 +4,7 @@ import { useLive } from '@/live'
 import { confirmBooking, declineBooking, watchAllBookings } from '@/services/bookings'
 import { watchUpcomingSlots } from '@/services/slots'
 import { fmtDate, fmtSlot } from '@/format'
-import { sessionTitle } from '@/progress'
+import { casePosition, sessionTitle } from '@/progress'
 import { useI18n } from 'vue-i18n'
 import { useZones } from '@/zones'
 import type { Booking, Slot, SlotOption } from '@/types'
@@ -62,6 +62,10 @@ async function decline(b: Booking) {
     <div class="card-head">
       <div>
         <h3><RouterLink :to="`/sessions/${b.id}`">{{ sessionTitle(b) }}</RouterLink></h3>
+        <p v-if="b.caseId" class="small">
+          <span class="badge warn">{{ $t('case.followUp') }}</span>
+          <template v-if="casePosition(bookings, b)"> {{ $t('case.position', casePosition(bookings, b)!) }} · </template><RouterLink :to="`/sessions/${b.caseId}`">{{ $t('case.firstSession') }}</RouterLink>
+        </p>
         <p class="small">{{ b.userName }}</p>
         <p class="muted small">{{ b.userEmail }} · {{ $t(`kind.${b.kind}`) }} · {{ $t('requests.requestedOn', { date: fmtDate(b.createdAt, tz) }) }}</p>
       </div>

@@ -22,6 +22,50 @@ export const byStart = (a: Booking, b: Booking) => a.confirmed!.start.getTime() 
 
 export const sessionTitle = (b: Booking) => b.title || t(`kind.${b.kind}`)
 
+// ---- cases: one research question over several sessions ----
+
+/** The case a booking belongs to, named by the case's first booking. */
+export const caseKey = (b: Booking) => b.caseId ?? b.id
+const isClosed = (b: Booking) => b.status === 'declined' || b.status === 'cancelled'
+const byCreated = (a: Booking, b: Booking) => a.createdAt.getTime() - b.createdAt.getTime()
+
+/** The live (not declined or cancelled) bookings in `b`'s case, in the order they were requested. */
+export function caseBookings(all: Booking[], b: Booking): Booking[] {
+  const k = caseKey(b)
+  return all.filter((x) => caseKey(x) === k && !isClosed(x)).sort(byCreated)
+}
+
+/** "Session n of total" for a booking whose case has more than one session; null otherwise. */
+export function casePosition(all: Booking[], b: Booking): { n: number; total: number } | null {
+  const list = caseBookings(all, b)
+  const n = list.findIndex((x) => x.id === b.id) + 1
+  return n && list.length > 1 ? { n, total: list.length } : null
+}
+
+export interface CaseSummary {
+  id: string
+  title: string
+  sessions: number
+}
+
+/** Cases a client can book a follow-up in: those with at least one confirmed or completed session. Latest first. */
+export function continuableCases(all: Booking[]): CaseSummary[] {
+  const groups = new Map<string, Booking[]>()
+  for (const b of [...all].sort(byCreated)) {
+    if (isClosed(b)) continue
+    const k = caseKey(b)
+    groups.set(k, [...(groups.get(k) ?? []), b])
+  }
+  return [...groups.entries()]
+    .filter(([, bs]) => bs.some(isSession))
+    .map(([id, bs]) => {
+      const first = bs.find((b) => b.id === id) ?? bs[0]
+      return { id, title: first.title, sessions: bs.length, last: bs[bs.length - 1].createdAt.getTime() }
+    })
+    .sort((a, b) => b.last - a.last)
+    .map(({ last: _, ...c }) => c)
+}
+
 export interface StudentSummary {
   user: UserProfile
   progress: Progress

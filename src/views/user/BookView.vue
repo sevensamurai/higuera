@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/auth'
 import { useLive } from '@/live'
 import { watchUpcomingSlots } from '@/services/slots'
 import { requestBooking, watchMyBookings } from '@/services/bookings'
 import { dayKey, fmtDay, fmtSlot, fmtTime, tzLabel, tzOffset } from '@/format'
 import { useZones } from '@/zones'
+import { continuableCases } from '@/progress'
 import type { Booking, BookingKind, Slot } from '@/types'
 import TimeZoneNote from '@/components/TimeZoneNote.vue'
 import { useI18n } from 'vue-i18n'
@@ -14,13 +15,14 @@ import { useI18n } from 'vue-i18n'
 const MAX_OPTIONS = 3
 
 const auth = useAuth()
+const route = useRoute()
 const router = useRouter()
 const user = auth.user!
 const { t } = useI18n()
 const { viewerTz, tutorTz } = useZones()
 
 const { value: slots, loaded } = useLive<Slot[]>([], watchUpcomingSlots)
-const mine = useLive<Booking[]>([], (set) => watchMyBookings(user.uid, set)).value
+const { value: mine, loaded: mineLoaded } = useLive<Booking[]>([], (set) => watchMyBookings(user.uid, set))
 
 // Slots already offered in one of my live requests — no point requesting them twice.
 const alreadyRequested = computed(
@@ -46,6 +48,27 @@ const notes = ref('')
 const busy = ref(false)
 const error = ref('')
 
+// Continuing a case: pick one of the client's cases (?case=<id> preselects it from a session page),
+// or "another case" and describe it, for one that started before this app.
+const cases = computed(() => continuableCases(mine.value))
+const caseId = ref(typeof route.query.case === 'string' ? route.query.case : '')
+if (caseId.value) kind.value = 'case'
+const current = computed(() => (kind.value === 'case' ? cases.value.find((c) => c.id === caseId.value) : undefined))
+watch(
+  current,
+  (c, prev) => {
+    if (c) title.value = c.title
+    else if (prev && title.value === prev.title) title.value = ''
+  },
+  { immediate: true },
+)
+watch(kind, (k) => {
+  if (k === 'case' && !caseId.value && cases.value.length) caseId.value = cases.value[0].id
+})
+watch(mineLoaded, () => {
+  if (caseId.value && !cases.value.some((c) => c.id === caseId.value)) caseId.value = '' // not theirs, or nothing to continue yet
+})
+
 const isSelected = (s: Slot) => selected.value.some((x) => x.id === s.id)
 function toggle(s: Slot) {
   if (isSelected(s)) selected.value = selected.value.filter((x) => x.id !== s.id)
@@ -61,6 +84,7 @@ async function submit() {
       userName: user.displayName ?? user.email ?? t('common.unnamed'),
       userEmail: user.email ?? '',
       userTimeZone: viewerTz.value,
+      caseId: current.value?.id,
       kind: kind.value,
       title: title.value,
       notes: notes.value,
@@ -86,12 +110,22 @@ async function submit() {
     <div class="row">
       <span class="small">{{ $t('book.thisIsFor') }}</span>
       <div class="segmented">
-        <button :class="{ on: kind === 'tutoring' }" @click="kind = 'tutoring'">{{ $t('kind.tutoring') }}</button>
-        <button :class="{ on: kind === 'freelance' }" @click="kind = 'freelance'">{{ $t('kind.freelance') }}</button>
+        <button :class="{ on: kind === 'tutoring' }" :aria-pressed="kind === 'tutoring'" @click="kind = 'tutoring'">{{ $t('kind.tutoring') }}</button>
+        <button :class="{ on: kind === 'case' }" :aria-pressed="kind === 'case'" @click="kind = 'case'">{{ $t('book.continuing') }}</button>
       </div>
     </div>
+    <template v-if="kind === 'case' && cases.length">
+      <label>
+        {{ $t('book.whichCase') }}
+        <select v-model="caseId">
+          <option v-for="c in cases" :key="c.id" :value="c.id">{{ c.title }}</option>
+          <option value="">{{ $t('book.otherCase') }}</option>
+        </select>
+      </label>
+      <p v-if="current" class="other-tz" style="margin-top: -0.4rem">{{ $t('book.followUp', { n: current.sessions + 1 }) }}</p>
+    </template>
     <label>
-      {{ $t('book.question') }}
+      {{ kind === 'case' && !current ? $t('book.caseQuestion') : $t('book.question') }}
       <input v-model="title" maxlength="120" :placeholder="$t('book.questionPlaceholder')" />
     </label>
     <label>

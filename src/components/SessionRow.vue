@@ -3,19 +3,21 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuth } from '@/auth'
 import { useZones } from '@/zones'
-import { isSession, sessionTitle, taskProgress } from '@/progress'
+import { casePosition, isSession, sessionTitle, taskProgress } from '@/progress'
 import { fmtSlot } from '@/format'
 import type { Booking, Task } from '@/types'
 import StatusBadge from './StatusBadge.vue'
 import PaymentBadge from './PaymentBadge.vue'
 import ProgressBar from './ProgressBar.vue'
 
-// A session as a clickable card; pass `tasks` (any superset) to show that session's progress.
-const props = defineProps<{ booking: Booking; tasks?: Task[]; showStudent?: boolean }>()
+// A session as a clickable card; pass `tasks` (any superset) to show that session's progress, and
+// `all` (the client's bookings, or any superset) to show its place in its case.
+const props = defineProps<{ booking: Booking; tasks?: Task[]; all?: Booking[]; showStudent?: boolean }>()
 const auth = useAuth()
 const { t } = useI18n()
 const { viewerTz: tz } = useZones()
 const progress = computed(() => taskProgress((props.tasks ?? []).filter((t) => t.bookingId === props.booking.id)))
+const position = computed(() => (props.all ? casePosition(props.all, props.booking) : null))
 const when = computed(() => {
   const b = props.booking
   if (b.confirmed) return fmtSlot(b.confirmed.start, b.confirmed.durationMin, tz.value)
@@ -33,7 +35,8 @@ const when = computed(() => {
       </div>
     </div>
     <p class="muted small">
-      {{ when }}<template v-if="showStudent && auth.isAdmin"> · {{ booking.userName }}</template>
+      {{ when }}<template v-if="position"> · {{ $t('case.position', position) }}</template>
+      <template v-if="showStudent && auth.isAdmin"> · {{ booking.userName }}</template>
     </p>
     <ProgressBar v-if="tasks && isSession(booking)" :progress="progress" compact />
   </RouterLink>
