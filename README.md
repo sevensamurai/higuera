@@ -43,7 +43,12 @@ family-tree and leaf motifs, heritage greens, ornate serifs). Palette:
 - **Theme:** Light / Dark, from the button in the header. Until a choice is made it follows the device,
   and is light when the device states no preference. The choice is remembered per device and applied
   before the page paints, so there is no flash.
-- **Mark:** two overlapping circles (two people, two generations) in jasmine and burnt peach on charcoal blue.
+- **Photo:** the signed-out home and sign-in pages sit on [Close-up of vintage photographs](https://www.pexels.com/photo/close-up-of-vintage-photographs-4394514/)
+  by Susanne Jutzeler (Pexels license), credited on the page. Self-hosted as WebP in three widths
+  (`public/home/`), so no request leaves the site.
+- **Mark:** the researcher's own logo, a head with a sprout growing inside, redrawn for small sizes
+  (`public/favicon.svg`, from which the PWA icons are rendered): two colours, a light outline and
+  verdigris leaves, on charcoal blue. It is the one leaf motif, and it is theirs.
 - **Words:** Researcher and Client; research question; checklist; notes; findings. All UI text is
   in `src/i18n/`; the business name is in `src/copy.ts`. Set the real
   business name with `VITE_APP_NAME` in `.env.local`; it's used for the header, the tab title and

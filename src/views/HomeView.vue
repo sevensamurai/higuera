@@ -3,6 +3,8 @@ import { useAuth } from '@/auth'
 import OverviewCard from '@/components/OverviewCard.vue'
 import StudentDashboard from '@/components/StudentDashboard.vue'
 import TutorDashboard from '@/components/TutorDashboard.vue'
+import HeroBackdrop from '@/components/HeroBackdrop.vue'
+import SignInButton from '@/components/SignInButton.vue'
 
 const auth = useAuth()
 </script>
@@ -10,7 +12,9 @@ const auth = useAuth()
 <template>
   <TutorDashboard v-if="auth.isAdmin" />
   <StudentDashboard v-else-if="auth.user" />
-  <OverviewCard v-else>
-    <div><RouterLink to="/login" class="btn">{{ $t('overview.signInToBook') }}</RouterLink></div>
-  </OverviewCard>
+  <HeroBackdrop v-else>
+    <OverviewCard>
+      <div><SignInButton /></div>
+    </OverviewCard>
+  </HeroBackdrop>
 </template>

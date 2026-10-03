@@ -66,6 +66,9 @@ function shift(by: number) {
           class="cal-day"
           :class="{ today: c.key === today, on: c.key === modelValue, past: c.key < today, has: counts.has(c.key) }"
           :disabled="c.key < today"
+          :data-day="c.key"
+          :aria-label="label(new Date(`${c.key}T00:00Z`), { dateStyle: 'full' })"
+          :aria-pressed="c.key === modelValue"
           @click="emit('update:modelValue', c.key)"
         >
           <span>{{ c.n }}</span>

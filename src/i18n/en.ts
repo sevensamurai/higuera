@@ -119,10 +119,12 @@ const en = {
   overview: {
     defaultTitle: 'Welcome',
     defaultBody:
-      'Sign in with Google to book a consultation or research time. Pick up to three times that suit you and your researcher will confirm one of them.',
-    signInToBook: 'Sign in to book',
+      'Sign in with Google to book a consultation, or a session to continue your case. Pick up to three times that suit you and your researcher will confirm one of them.',
     body: 'Overview',
     bothLanguages: 'Write it in both languages; each visitor sees theirs.',
+  },
+  hero: {
+    photo: 'Photo:',
   },
   login: {
     title: 'Sign in',
@@ -293,13 +295,13 @@ const en = {
     inPast: 'In the past',
     tooShort: 'That window is shorter than one session.',
     addSlots: 'Add slots | Add {n} slot | Add {n} slots',
-    added: 'Added {n} slot(s). Pick another date to keep going.',
+    added: 'Added {n} slot(s).',
     prevMonth: 'Previous month',
     nextMonth: 'Next month',
     openCount: 'open',
     pickSlots: 'Tick the slots you want to open; untick any you don\'t.',
-    upcoming: 'Upcoming slots',
-    none: 'No upcoming slots.',
+    onDay: 'Slots on {day}',
+    noneOnDay: 'Nothing open on this day yet.',
     booked: 'Booked',
     confirmRemove: 'Remove {when}? Pending requests that include it will show it as removed.',
   },

@@ -121,10 +121,12 @@ const es: Messages = {
   overview: {
     defaultTitle: 'Bienvenida',
     defaultBody:
-      'Entra con tu cuenta de Google para reservar una consulta u horas de investigación. Elige hasta tres horarios que te acomoden y tu genealogista confirmará uno.',
-    signInToBook: 'Entra para reservar',
+      'Entra con tu cuenta de Google para reservar una consulta o una sesión para continuar tu caso. Elige hasta tres horarios que te acomoden y tu genealogista confirmará uno.',
     body: 'Presentación',
     bothLanguages: 'Escríbela en ambos idiomas; cada visita ve la suya.',
+  },
+  hero: {
+    photo: 'Foto:',
   },
   login: {
     title: 'Entrar',
@@ -295,13 +297,13 @@ const es: Messages = {
     inPast: 'Ya pasó',
     tooShort: 'Ese bloque es más corto que una sesión.',
     addSlots: 'Agregar horarios | Agregar {n} horario | Agregar {n} horarios',
-    added: 'Se agregaron {n} horario(s). Elige otra fecha para seguir.',
+    added: 'Se agregaron {n} horario(s).',
     prevMonth: 'Mes anterior',
     nextMonth: 'Mes siguiente',
     openCount: 'libres',
     pickSlots: 'Marca los horarios que quieres abrir; desmarca los que no.',
-    upcoming: 'Próximos horarios',
-    none: 'No hay horarios próximos.',
+    onDay: 'Horarios del {day}',
+    noneOnDay: 'Aún no hay horarios abiertos este día.',
     booked: 'Reservado',
     confirmRemove: '¿Quitar {when}? Las solicitudes pendientes que lo incluyan lo mostrarán como eliminado.',
   },

@@ -1,14 +1,19 @@
 <script setup lang="ts">
-import { useRouter } from 'vue-router'
+import { computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { signOut, useAuth } from './auth'
 import ReloadPrompt from './components/ReloadPrompt.vue'
 import { APP_NAME } from './copy'
 import ThemeToggle from './components/ThemeToggle.vue'
 import LanguageToggle from './components/LanguageToggle.vue'
+import BrandMark from './components/BrandMark.vue'
 
 const auth = useAuth()
 const year = new Date().getFullYear()
 const router = useRouter()
+const route = useRoute()
+// Signed-out home and sign-in fill the space between header and footer with a photo.
+const fullBleed = computed(() => auth.ready && !auth.user && (route.name === 'home' || route.name === 'login'))
 
 async function logout() {
   await signOut()
@@ -19,7 +24,7 @@ async function logout() {
 <template>
   <header class="topbar">
     <RouterLink to="/" class="brand">
-      <img src="/favicon.svg" alt="" width="30" height="30" />
+      <BrandMark />
       <span>{{ APP_NAME }}</span>
     </RouterLink>
     <div class="who">
@@ -36,7 +41,8 @@ async function logout() {
         <img v-if="auth.user.photoURL" :src="auth.user.photoURL" alt="" class="avatar" referrerpolicy="no-referrer" />
         <button class="link" @click="logout">{{ $t('nav.signOut') }}</button>
       </template>
-      <RouterLink v-else-if="auth.ready" to="/login" class="btn small">{{ $t('nav.signIn') }}</RouterLink>
+      <!-- The photo pages carry their own sign-in button. -->
+      <RouterLink v-else-if="auth.ready && !fullBleed" to="/login" class="btn small">{{ $t('nav.signIn') }}</RouterLink>
     </div>
   </header>
 
@@ -55,7 +61,7 @@ async function logout() {
     </template>
   </nav>
 
-  <main class="page">
+  <main class="page" :class="{ 'page-full': fullBleed }">
     <!-- Keyed on user and path so listeners are rebuilt on sign-in/out and between two detail pages. -->
     <RouterView v-if="auth.ready" v-slot="{ Component, route }">
       <component :is="Component" :key="`${auth.user?.uid ?? 'anon'}:${route.path}`" />
@@ -66,10 +72,7 @@ async function logout() {
   <footer class="site-footer">
     <div class="site-footer-inner">
       <div>
-        <RouterLink to="/" class="brand">
-          <img src="/favicon.svg" alt="" width="26" height="26" />
-          <span>{{ APP_NAME }}</span>
-        </RouterLink>
+        <RouterLink to="/" class="brand">{{ APP_NAME }}</RouterLink>
         <p>{{ $t('footer.tagline') }}</p>
       </div>
       <p>© {{ year }}</p>

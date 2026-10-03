@@ -24,6 +24,13 @@ const message = ref('')
 const overlaps = (start: Date, mins: number, s: Slot) =>
   start.getTime() < s.start.getTime() + s.durationMin * 60_000 && s.start.getTime() < start.getTime() + mins * 60_000
 
+// The day is picked on the calendar; this is how it reads back.
+const dateText = computed(() =>
+  new Intl.DateTimeFormat(intlLocale.value, { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(
+    new Date(`${date.value}T00:00Z`),
+  ),
+)
+
 const planned = computed(() => {
   if (!date.value || !from.value || !to.value) return []
   return planSlots(date.value, from.value, to.value, duration.value, tz.value).map((start) => ({
@@ -52,21 +59,13 @@ async function create() {
     const starts = creatable.value.map((p) => p.start)
     await createSlots(starts, duration.value)
     message.value = t('availability.added', { n: starts.length })
-    date.value = ''
   } finally {
     busy.value = false
   }
 }
 
-const days = computed(() => {
-  const groups = new Map<string, { label: string; slots: Slot[] }>()
-  for (const s of slots.value) {
-    const k = dayKey(s.start, tz.value)
-    if (!groups.has(k)) groups.set(k, { label: fmtDay(s.start, tz.value), slots: [] })
-    groups.get(k)!.slots.push(s)
-  }
-  return [...groups.values()]
-})
+// Only the picked day's slots are listed; the calendar already shows every day's counts.
+const daySlots = computed(() => (date.value ? slots.value.filter((s) => dayKey(s.start, tz.value) === date.value) : []))
 
 async function remove(s: Slot) {
   if (confirm(t('availability.confirmRemove', { when: `${fmtDay(s.start, tz.value)} ${fmtTime(s.start, tz.value)}` }))) {
@@ -85,7 +84,10 @@ async function remove(s: Slot) {
     <p class="muted small">{{ $t('availability.openIntro', { zone: tzLabel(tz) }) }}</p>
     <SlotCalendar v-model="date" :slots="slots" :tz="tz" />
     <div class="fields">
-      <label>{{ $t('common.date') }} <input type="date" v-model="date" /></label>
+      <div v-if="date" class="readonly-field">
+        <span>{{ $t('common.date') }}</span>
+        <output>{{ dateText }}</output>
+      </div>
       <label>{{ $t('availability.from') }} <input type="time" v-model="from" step="900" /></label>
       <label>{{ $t('availability.to') }} <input type="time" v-model="to" step="900" /></label>
       <label>
@@ -118,17 +120,16 @@ async function remove(s: Slot) {
     </div>
   </div>
 
-  <h2>{{ $t('availability.upcoming') }} <span class="other-tz">· {{ tzLabel(tz) }}</span></h2>
-  <p v-if="!loaded" class="muted">{{ $t('common.loading') }}</p>
-  <p v-else-if="days.length === 0" class="muted">{{ $t('availability.none') }}</p>
-  <div v-for="d in days" :key="d.label" class="day">
-    <h3>{{ d.label }}</h3>
-    <div class="chips">
-      <span v-for="s in d.slots" :key="s.id" class="chip row">
+  <template v-if="date">
+    <h2>{{ $t('availability.onDay', { day: dateText }) }} <span class="other-tz">· {{ tzLabel(tz) }}</span></h2>
+    <p v-if="!loaded" class="muted">{{ $t('common.loading') }}</p>
+    <p v-else-if="daySlots.length === 0" class="muted">{{ $t('availability.noneOnDay') }}</p>
+    <div v-else class="chips">
+      <span v-for="s in daySlots" :key="s.id" class="chip row">
         {{ fmtTime(s.start, tz) }} <span class="muted small">{{ s.durationMin }}m</span>
         <span v-if="s.status === 'booked'" class="badge">{{ $t('availability.booked') }}</span>
         <button v-else class="link small" :title="$t('common.remove')" :aria-label="$t('common.remove')" @click="remove(s)">✕</button>
       </span>
     </div>
-  </div>
+  </template>
 </template>
