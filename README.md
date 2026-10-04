@@ -95,6 +95,17 @@ There are two lanes.
   researcher can tick an item off; clients see the status.
 - **Home**: edit the public overview text.
 
+## Offline
+
+The installed app opens without a network: the service worker holds the app itself, and Firestore keeps
+a local copy of what you've read. Signing in needs the network, but opening the app doesn't: start-up
+never waits on a Firestore write (those finish only once the server has them), and each account's last
+known role and timezone are kept on the device (`account:<uid>` in `localStorage`), so the researcher
+gets their dashboard offline. Online, the server's answer still wins; on a very slow connection the page
+opens on the device's copy after about 3.5 seconds and updates when the server answers. Changes made
+offline (a booking request, say) are sent when the connection returns. `npm run test:offline` checks this
+against a production build.
+
 ## Cases
 
 A research question often takes several sessions. When booking, a client chooses **Consultation** (a
