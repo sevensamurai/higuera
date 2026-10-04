@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useLive } from '@/live'
 import { watchAllBookings } from '@/services/bookings'
 import { watchAllTasks } from '@/services/tasks'
 import { watchUpcomingSlots } from '@/services/slots'
-import { dayKey, fmtDay, fmtTime } from '@/format'
+import { dayKey, fmtDay, fmtTime, fold } from '@/format'
 import { useZones } from '@/zones'
 import { byStart, isSession, isUpcoming } from '@/progress'
 import type { Booking, Slot, Task } from '@/types'
@@ -31,7 +32,26 @@ const openDays = computed(() => {
   return [...groups.values()]
 })
 
-const sessions = computed(() => bookings.value.filter(isSession))
+// Search by client (name or email) or by research question; kept in the URL so Back returns to it.
+const route = useRoute()
+const router = useRouter()
+const q = ref(typeof route.query.q === 'string' ? route.query.q : '')
+watch(q, (v) => router.replace({ query: v.trim() ? { q: v } : {} }))
+const terms = computed(() => fold(q.value).split(/\s+/).filter(Boolean))
+const matches = (b: Booking) => terms.value.every((t) => fold(`${b.userName} ${b.userEmail} ${b.title}`).includes(t))
+/** Clients with a matching booking, each linking to their page (every session, request and checklist). */
+const clients = computed(() => {
+  if (!terms.value.length) return []
+  const m = new Map<string, { uid: string; name: string; email: string; n: number }>()
+  for (const b of bookings.value.filter(matches)) {
+    const c = m.get(b.userId) ?? { uid: b.userId, name: b.userName, email: b.userEmail, n: 0 }
+    c.n++
+    m.set(b.userId, c)
+  }
+  return [...m.values()].sort((a, b) => a.name.localeCompare(b.name))
+})
+
+const sessions = computed(() => bookings.value.filter(isSession).filter(matches))
 const shown = computed(() => {
   switch (filter.value) {
     case 'upcoming':
@@ -48,6 +68,20 @@ const unpaidCount = computed(() => sessions.value.filter((b) => b.payment === 'p
 <template>
   <h1>{{ $t('adminSessions.title') }}</h1>
   <TimeZoneNote />
+  <input
+    v-model="q"
+    type="search"
+    class="search"
+    :placeholder="$t('adminSessions.search')"
+    :aria-label="$t('adminSessions.search')"
+    autocomplete="off"
+  />
+  <div v-if="terms.length" class="chips" style="margin: 0.6rem 0 0.9rem">
+    <span v-if="loaded && clients.length === 0" class="muted small">{{ $t('adminSessions.noClient') }}</span>
+    <RouterLink v-for="c in clients" :key="c.uid" :to="`/admin/students/${c.uid}`" class="chip client-chip">
+      {{ c.name }} <span class="muted small">· {{ c.email }} · {{ $t('adminSessions.bookings', c.n) }} →</span>
+    </RouterLink>
+  </div>
   <div class="segmented" style="margin-bottom: 1rem">
     <button :class="{ on: filter === 'upcoming' }" @click="filter = 'upcoming'">{{ $t('adminSessions.upcoming') }}</button>
     <button :class="{ on: filter === 'past' }" @click="filter = 'past'">{{ $t('adminSessions.past') }}</button>
@@ -57,7 +91,7 @@ const unpaidCount = computed(() => sessions.value.filter((b) => b.payment === 'p
   <p v-else-if="shown.length === 0" class="muted">{{ $t('common.nothingHere') }}</p>
   <SessionRow v-for="b in shown" :key="b.id" :booking="b" :all="bookings" :tasks="tasks" show-student />
 
-  <template v-if="filter === 'upcoming' && slotsLoaded">
+  <template v-if="filter === 'upcoming' && slotsLoaded && !terms.length">
     <h2>
       {{ $t('adminSessions.openSlots') }}
       <RouterLink to="/admin/availability" class="small">{{ $t('adminSessions.manage') }}</RouterLink>

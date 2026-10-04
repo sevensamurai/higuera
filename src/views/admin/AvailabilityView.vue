@@ -69,7 +69,8 @@ const daySlots = computed(() => (date.value ? slots.value.filter((s) => dayKey(s
 
 async function remove(s: Slot) {
   if (confirm(t('availability.confirmRemove', { when: `${fmtDay(s.start, tz.value)} ${fmtTime(s.start, tz.value)}` }))) {
-    await deleteSlot(s.id)
+    // The rules refuse to delete a slot someone was confirmed into meanwhile.
+    await deleteSlot(s.id).catch(() => alert(t('errors.slotTaken')))
   }
 }
 </script>

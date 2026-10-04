@@ -1,16 +1,20 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { dayKey } from '@/format'
 import { intlLocale } from '@/i18n'
 import type { Slot } from '@/types'
 
-/** Month grid (weeks start Monday) showing, per day in `tz`, how many slots are open and booked. */
-const props = defineProps<{ slots: Slot[]; tz: string; modelValue: string }>()
+/**
+ * Month grid (weeks start Monday) for picking a day in `tz`. By default each day shows how many slots are
+ * open and booked; the `day` and `legend` slots replace that (the Requests page shows requests instead).
+ */
+const props = withDefaults(defineProps<{ slots?: Slot[]; tz: string; modelValue: string }>(), { slots: () => [] })
 const emit = defineEmits<{ 'update:modelValue': [day: string] }>()
 
 const today = computed(() => dayKey(new Date(), props.tz))
 // First of the month on show, as yyyy-mm; starts on the picked day, else this month.
 const month = ref((props.modelValue || today.value).slice(0, 7))
+watch(() => props.modelValue, (v) => v && (month.value = v.slice(0, 7)))
 
 const counts = computed(() => {
   const m = new Map<string, { open: number; booked: number }>()
@@ -72,13 +76,17 @@ function shift(by: number) {
           @click="emit('update:modelValue', c.key)"
         >
           <span>{{ c.n }}</span>
-          <small v-if="counts.get(c.key)?.open" class="open">{{ counts.get(c.key)!.open }}</small>
-          <small v-if="counts.get(c.key)?.booked" class="booked">{{ counts.get(c.key)!.booked }}</small>
+          <slot name="day" :day="c.key">
+            <small v-if="counts.get(c.key)?.open" class="open">{{ counts.get(c.key)!.open }}</small>
+            <small v-if="counts.get(c.key)?.booked" class="booked">{{ counts.get(c.key)!.booked }}</small>
+          </slot>
         </button>
       </template>
     </div>
     <p class="muted small cal-key">
-      <small class="open">n</small> {{ $t('availability.openCount') }} · <small class="booked">n</small> {{ $t('availability.booked') }}
+      <slot name="legend">
+        <small class="open">n</small> {{ $t('availability.openCount') }} · <small class="booked">n</small> {{ $t('availability.booked') }}
+      </slot>
     </p>
   </div>
 </template>

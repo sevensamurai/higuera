@@ -62,11 +62,19 @@ watch(
   },
   { immediate: true },
 )
+// ?again=<id>: booking a declined request again, keeping its question, case and details.
+const againId = typeof route.query.again === 'string' ? route.query.again : ''
 watch(kind, (k) => {
-  if (k === 'case' && !caseId.value && cases.value.length) caseId.value = cases.value[0].id
+  if (k === 'case' && !caseId.value && cases.value.length && !againId) caseId.value = cases.value[0].id
 })
 watch(mineLoaded, () => {
   if (caseId.value && !cases.value.some((c) => c.id === caseId.value)) caseId.value = '' // not theirs, or nothing to continue yet
+  const again = againId ? mine.value.find((b) => b.id === againId) : undefined
+  if (!again) return
+  kind.value = again.kind === 'case' || again.caseId ? 'case' : 'tutoring'
+  if (again.caseId && cases.value.some((c) => c.id === again.caseId)) caseId.value = again.caseId
+  else title.value = again.title
+  notes.value = again.notes
 })
 
 const isSelected = (s: Slot) => selected.value.some((x) => x.id === s.id)

@@ -23,7 +23,7 @@ export default defineConfig(({ mode }) => {
       vue(),
       VitePWA({
         registerType: 'prompt',
-        includeAssets: ['favicon.svg'],
+        includeAssets: ['favicon.svg', 'favicon.ico', 'apple-touch-icon.png'],
         manifest: {
           name: appName,
           short_name: appName.length <= 12 ? appName : appName.split(' ')[0],
@@ -37,7 +37,9 @@ export default defineConfig(({ mode }) => {
           icons: [
             { src: 'pwa-192.png', sizes: '192x192', type: 'image/png' },
             { src: 'pwa-512.png', sizes: '512x512', type: 'image/png' },
+            { src: 'pwa-maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
             { src: 'pwa-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+            { src: 'favicon.svg', sizes: 'any', type: 'image/svg+xml' },
           ],
         },
         workbox: {

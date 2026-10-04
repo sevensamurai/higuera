@@ -1,9 +1,11 @@
 // Firestore rules tests. Run with `npm run test:rules` (needs Java 21+ for the emulator).
 import { after, before, beforeEach, describe, test } from 'node:test'
+import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing'
 import {
-  addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, query, serverTimestamp, setDoc, Timestamp, updateDoc, where,
+  addDoc, collection, deleteDoc, deleteField, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, setDoc, Timestamp,
+  updateDoc, where, writeBatch,
 } from 'firebase/firestore'
 
 let env
@@ -118,11 +120,63 @@ describe('bookings', () => {
     await assertFails(updateDoc(doc(db(BOB), 'bookings', 'a1'), { status: 'cancelled', updatedAt: Timestamp.now() }))
     await assertSucceeds(updateDoc(doc(a, 'bookings', 'a1'), { status: 'cancelled', updatedAt: Timestamp.now() }))
   })
-  test('admin confirms, marks paid, and reads everything', async () => {
+  test('admin confirms (booking the slot in the same write), marks paid, and reads everything', async () => {
     const t = db(ADMIN)
     await assertSucceeds(getDocs(collection(t, 'bookings')))
-    await assertSucceeds(updateDoc(doc(t, 'bookings', 'a1'), { status: 'confirmed', confirmed: option(1) }))
+    const confirm = writeBatch(t)
+    confirm.update(doc(t, 'slots', 's1'), { status: 'booked', bookingId: 'a1' })
+    confirm.update(doc(t, 'bookings', 'a1'), { status: 'confirmed', confirmed: option(1) })
+    await assertSucceeds(confirm.commit())
     await assertSucceeds(updateDoc(doc(t, 'bookings', 'a1'), { payment: 'paid', paymentNote: 'cash' }))
+  })
+})
+
+describe('no double booking', () => {
+  const confirmBoth = (t, bookingId, slotId = 's1') => {
+    const b = writeBatch(t)
+    b.update(doc(t, 'slots', slotId), { status: 'booked', bookingId })
+    b.update(doc(t, 'bookings', bookingId), { status: 'confirmed', confirmed: option(1) })
+    return b.commit()
+  }
+  test('a request is confirmed only by claiming its open slot', async () => {
+    const t = db(ADMIN)
+    await assertFails(updateDoc(doc(t, 'bookings', 'a1'), { status: 'confirmed', confirmed: option(1) }))
+    await assertFails(updateDoc(doc(t, 'slots', 's1'), { status: 'booked', bookingId: 'a1' }))
+    await assertSucceeds(confirmBoth(t, 'a1'))
+  })
+  test('a booked slot cannot go to a second request, nor be deleted', async () => {
+    const t = db(ADMIN)
+    await assertSucceeds(confirmBoth(t, 'a1'))
+    await assertFails(confirmBoth(t, 'b1'))
+    await assertFails(updateDoc(doc(t, 'slots', 's1'), { bookingId: 'b1' }))
+    await assertFails(deleteDoc(doc(t, 'slots', 's1')))
+  })
+  test('releasing a slot (cancel or undo) is allowed, and it can then be booked again', async () => {
+    const t = db(ADMIN)
+    await assertSucceeds(confirmBoth(t, 'a1'))
+    const release = writeBatch(t)
+    release.update(doc(t, 'slots', 's1'), { status: 'open', bookingId: deleteField() })
+    release.update(doc(t, 'bookings', 'a1'), { status: 'pending', confirmed: deleteField() })
+    await assertSucceeds(release.commit())
+    await assertSucceeds(confirmBoth(t, 'b1'))
+  })
+  test('two confirmations racing for one slot: exactly one wins', async () => {
+    // Mirrors confirmBooking in src/services/bookings.ts, from two devices at once.
+    const confirm = (bookingId) => {
+      const t = db(ADMIN)
+      return runTransaction(t, async (tx) => {
+        const s = await tx.get(doc(t, 'slots', 's1'))
+        if (s.data().status !== 'open') throw new Error('slot taken')
+        tx.update(doc(t, 'slots', 's1'), { status: 'booked', bookingId })
+        tx.update(doc(t, 'bookings', bookingId), { status: 'confirmed', confirmed: option(1) })
+      })
+    }
+    const results = await Promise.allSettled([confirm('a1'), confirm('b1')])
+    assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1)
+    let slot
+    await env.withSecurityRulesDisabled(async (ctx) => (slot = (await getDoc(doc(ctx.firestore(), 'slots', 's1'))).data()))
+    assert.equal(slot.status, 'booked')
+    assert.equal(slot.bookingId, results[0].status === 'fulfilled' ? 'a1' : 'b1')
   })
 })
 
@@ -157,7 +211,10 @@ describe('slots & tasks', () => {
     await assertFails(getDocs(collection(db(null), 'slots')))
     await assertSucceeds(getDocs(collection(db(ALICE), 'slots')))
     await assertFails(updateDoc(doc(db(ALICE), 'slots', 's1'), { status: 'booked' }))
-    await assertSucceeds(updateDoc(doc(db(ADMIN), 'slots', 's1'), { status: 'booked', bookingId: 'a1' }))
+    await assertSucceeds(updateDoc(doc(db(ADMIN), 'slots', 's1'), { durationMin: 45 }))
+    await assertSucceeds(setDoc(doc(db(ADMIN), 'slots', 's9'), { start: option(9).start, durationMin: 60, status: 'open' }))
+    await assertFails(setDoc(doc(db(ADMIN), 'slots', 's8'), { start: option(8).start, durationMin: 60, status: 'booked' }))
+    await assertSucceeds(deleteDoc(doc(db(ADMIN), 'slots', 's9')))
   })
   test('users read only their own tasks and cannot complete them', async () => {
     await assertSucceeds(getDoc(doc(db(ALICE), 'tasks', 't1')))

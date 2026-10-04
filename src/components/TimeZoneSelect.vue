@@ -1,14 +1,12 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, useId, watch } from 'vue'
 import { allTimeZones, browserTimeZone } from '@/timezone'
-import { tzLabel, tzOffset } from '@/format'
+import { fold, tzLabel, tzOffset } from '@/format'
 import { intlLocale } from '@/i18n'
 
 // A searchable timezone picker (ARIA combobox): type part of a city, a zone name in the current
 // language ("Chile", "Pacific"), or an offset ("GMT-3", "+5:30"); arrows and Enter pick.
 const model = defineModel<string>({ required: true })
-
-const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
 
 function build(locale: string): Option[] {
   return allTimeZones().map((tz) => {

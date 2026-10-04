@@ -47,7 +47,8 @@ family-tree and leaf motifs, heritage greens, ornate serifs). Palette:
   by Susanne Jutzeler (Pexels license), credited on the page. Self-hosted as WebP in three widths
   (`public/home/`), so no request leaves the site.
 - **Mark:** the researcher's own logo, a head with a sprout growing inside, redrawn for small sizes
-  (`public/favicon.svg`, from which the PWA icons are rendered): two colours, a light outline and
+  (`public/favicon.svg`, the one source: `npm run icons` renders the PWA, maskable, iOS and `.ico`
+  icons from it): two colours, a light outline and
   verdigris leaves, on charcoal blue. It is the one leaf motif, and it is theirs.
 - **Words:** Researcher and Client; research question; checklist; notes; findings. All UI text is
   in `src/i18n/`; the business name is in `src/copy.ts`. Set the real
@@ -103,6 +104,29 @@ that started before the app. A finished or confirmed session also offers **Book 
 A case is not a separate record: a follow-up stores `caseId`, the id of the case's first booking, and
 the rules accept only a case of the client's own. Session pages list the case's sessions ("session 2
 of 3"), and the researcher's Requests page marks follow-ups with a link to the first session.
+
+## Requests and double booking
+
+Clients request 1–3 times; nothing is booked until the researcher confirms one. Several clients may
+ask for the same time, so the **Requests** page opens on a calendar: each day shows how many requests
+it has and a **!** where two or more want the same time, and it starts on the first such day. Under
+the calendar, each requested time lists who wants it. When several do, one is starred **Suggested**:
+whoever has no other option, otherwise whoever asked first (`src/requests.ts`, with unit tests).
+Each name shows that client's other times, so confirming them anywhere is an informed choice. A
+**List** toggle shows the requests per client instead. Confirming offers **Undo** for 10 seconds.
+
+Requests whose every time has gone are listed under **Needs a new time**, with one tap to decline
+them with a message; the client then sees **Book again** on that request, which reopens the booking
+form with their question and case kept.
+
+Double booking is prevented in the rules, not just the app: a request becomes confirmed only in the
+same write that flips its slot from open to booked with that request's id, a booked slot can't be
+handed to another request or deleted, and a slot is never booked on its own. Confirmation runs in a
+transaction, so two devices confirming the same time at once can't both win;
+`tests/rules.test.mjs` races two confirmations to prove it.
+
+The **Sessions** page has a search box (client name, email or research question; accents and case
+ignored) that also lists matching clients, each linking to their page with everything they booked.
 
 ## Timezones
 

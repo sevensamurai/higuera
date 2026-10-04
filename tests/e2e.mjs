@@ -91,11 +91,35 @@ await shot(student, '03-student-book')
 await student.click('button:has-text("Request")')
 await student.waitForURL(BASE + '/')
 
-step('tutor confirms the first option')
+step('a second client asks only for 15:00, which Sam has as his second choice')
+const carlaCtx = await context('America/Mexico_City', { width: 420, height: 900 })
+const carla = await signIn(carlaCtx, 'carla@example.com', 'Carla Client')
+await carla.goto(BASE + '/book')
+await carla.waitForSelector('.chip')
+await carla.fill('input[placeholder^="e.g. Who were"]', 'Baptism records in Talca')
+await carla.click('.chip >> nth=1')
+await carla.click('button:has-text("Request")')
+await carla.waitForURL(BASE + '/')
+
+step('tutor sorts out the clash on the requests calendar, with an undo on the way')
 await tutor.goto(BASE + '/admin/requests')
-await tutor.waitForSelector('button:has-text("Confirm this")')
+await tutor.waitForSelector('.contenders li')
+console.log('  day opened on its own:', await tutor.locator('h2 >> nth=0').innerText())
+console.log('  calendar marks:', (await tutor.locator('.cal-day.on .cal-marks').innerText()).replace(/\s+/g, ' '))
+for (const card of await tutor.locator('section.card:has(.contenders)').all()) {
+  console.log('  ', (await card.innerText()).replace(/\n+/g, ' | '))
+}
 await shot(tutor, '04-tutor-requests')
-await tutor.click('button:has-text("Confirm this") >> nth=0')
+await tutor.click('.contenders li.suggested button') // Carla: 15:00 is her only option
+await tutor.waitForSelector('.toast')
+console.log('  toast:', (await tutor.locator('.toast').innerText()).replace(/\s+/g, ' '))
+await tutor.click('.toast button') // undo
+await tutor.waitForSelector('.contenders li.suggested')
+console.log('  undo puts Carla back as suggested:', await tutor.locator('.contenders li.suggested strong >> nth=0').innerText())
+await tutor.click('.contenders li.suggested button')
+await tutor.waitForSelector('.contenders li.suggested', { state: 'detached' })
+console.log('  Sam left with:', (await tutor.locator('section.card:has(.contenders) h3').allInnerTexts()).join(', '))
+await tutor.click('.contenders li button') // Sam at 14:00
 await tutor.waitForSelector('text=No requests waiting')
 
 step('tutor works the session: tasks, note, payment')
@@ -135,7 +159,7 @@ step('tutor dashboard and student page')
 await tutor.goto(BASE + '/')
 await tutor.waitForSelector('a.card[href^="/admin/students/"]')
 await shot(tutor, '08-tutor-dashboard')
-await tutor.click('a.card[href^="/admin/students/"]')
+await tutor.click('a.card[href^="/admin/students/"]:has-text("Sam Student")')
 await tutor.waitForSelector('h1:has-text("Sam Student")')
 await shot(tutor, '09-tutor-student')
 
@@ -219,13 +243,40 @@ await shot(student, '17-student-follow-up')
 await student.click('button:has-text("Request")')
 await student.waitForURL(BASE + '/')
 await tutor.goto(BASE + '/admin/requests')
-await tutor.waitForSelector('.badge.warn') // the tutor is still in Spanish here
+await tutor.waitForSelector('.contenders .badge.warn') // the calendar marks it a follow-up too
+await tutor.click('[data-view=list]')
+await tutor.waitForSelector('p:has(.badge.warn)') // the tutor is still in Spanish here
 console.log('  request shows:', (await tutor.locator('p:has(.badge.warn)').innerText()).replace(/\s+/g, ' '))
 await shot(tutor, '18-tutor-follow-up-request')
 await student.goto(sessionUrl)
 await student.waitForSelector('.case-list li >> nth=1')
 console.log('  case on the first session:', (await student.locator('.case-list').innerText()).replace(/\n/g, ' | '))
 await shot(student, '19-student-case')
+
+step('tutor looks a client up by name on the sessions page')
+await tutor.goto(BASE + '/admin/sessions')
+await tutor.fill('input[type=search]', 'carla')
+await tutor.waitForSelector('.client-chip')
+console.log('  search "carla":', await tutor.locator('.client-chip').allInnerTexts(), '·', await tutor.locator('a.card h3').allInnerTexts())
+await tutor.fill('input[type=search]', 'MARÍA silva')
+await tutor.waitForFunction(() => document.querySelectorAll('a.card').length === 1)
+console.log('  search by question, accents ignored:', await tutor.locator('a.card h3').allInnerTexts())
+await shot(tutor, '20-tutor-search')
+
+step('an admin signing in never sees client screens on the way to their dashboard')
+await tutor.goto(BASE + '/')
+await tutor.click('.who button.link') // sign out
+await tutor.waitForSelector('.hero')
+await tutor.evaluate(() => {
+  window.__sawClient = false
+  // Any link to /book (client dashboard or client nav) means the wrong role was shown, if only briefly.
+  new MutationObserver(() => document.querySelector('a[href="/book"]') && (window.__sawClient = true))
+    .observe(document.body, { childList: true, subtree: true })
+})
+await tutor.evaluate(() => window.__e2eSignIn('tess@example.com', 'Tess Tutor'))
+await tutor.waitForSelector('.grid-stats a[href="/admin/requests"]')
+if (await tutor.evaluate(() => window.__sawClient)) throw new Error('admin briefly saw client screens while signing in')
+console.log('  no client screens on the way')
 
 await browser.close()
 console.log(errors.length ? `console errors:\n${errors.join('\n')}` : 'no console errors')

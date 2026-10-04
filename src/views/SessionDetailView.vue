@@ -135,6 +135,9 @@ async function withdraw() {
       </template>
 
       <p v-if="booking.adminNote" class="prewrap small"><strong>{{ $t('session.researcherSays') }}</strong> {{ booking.adminNote }}</p>
+      <div v-if="!auth.isAdmin && booking.status === 'declined'">
+        <RouterLink :to="`/book?again=${booking.id}`" class="btn small">{{ $t('session.bookAgain') }}</RouterLink>
+      </div>
       <template v-if="booking.notes">
         <p class="small muted">{{ $t('session.requestDetails') }}</p>
         <p class="prewrap">{{ booking.notes }}</p>

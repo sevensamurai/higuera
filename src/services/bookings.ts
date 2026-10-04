@@ -115,6 +115,20 @@ export async function confirmBooking(bookingId: string, option: SlotOption) {
   })
 }
 
+/** Takes back a confirmation just made: the request is pending again and its slot open. */
+export async function undoConfirm(bookingId: string) {
+  await runTransaction(db, async (tx) => {
+    const bRef = doc(col, bookingId)
+    const b = await tx.get(bRef)
+    const slotId: string | undefined = b.data()?.confirmed?.slotId
+    if (b.data()?.status !== 'confirmed' || !slotId) return
+    const sRef = doc(db, 'slots', slotId)
+    const s = await tx.get(sRef)
+    if (s.exists() && s.data().bookingId === bookingId) tx.update(sRef, { status: 'open', bookingId: deleteField() })
+    tx.update(bRef, { status: 'pending', confirmed: deleteField(), updatedAt: serverTimestamp() })
+  })
+}
+
 export const declineBooking = (id: string, adminNote: string) =>
   updateDoc(doc(col, id), { status: 'declined', adminNote: adminNote.trim(), updatedAt: serverTimestamp() })
 
