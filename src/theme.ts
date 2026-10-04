@@ -1,43 +1,48 @@
 import { ref, watch } from 'vue'
 
-// Light/dark preference. 'auto' follows the OS. This is a per-device convenience, so localStorage
-// (guarded: it can throw in private mode). index.html applies the saved value before first paint.
-export type ThemePref = 'auto' | 'light' | 'dark'
+// Light/dark. Until someone picks one, it follows the device (light when the device states no
+// preference); a click saves an explicit choice. Per-device convenience, so localStorage (guarded: it
+// can throw in private mode). index.html applies the saved value before first paint.
+export type Theme = 'light' | 'dark'
 const KEY = 'theme'
 
-function read(): ThemePref {
+function saved(): Theme | null {
   try {
     const v = localStorage.getItem(KEY)
-    return v === 'light' || v === 'dark' ? v : 'auto'
+    return v === 'light' || v === 'dark' ? v : null
   } catch {
-    return 'auto'
+    return null
   }
 }
 
-export const themePref = ref<ThemePref>(read())
+const system = window.matchMedia('(prefers-color-scheme: dark)')
+const fromSystem = (): Theme => (system.matches ? 'dark' : 'light')
 
-const dark = window.matchMedia('(prefers-color-scheme: dark)')
+let chosen = saved()
+export const theme = ref<Theme>(chosen ?? fromSystem())
 
 function apply() {
   const root = document.documentElement
-  if (themePref.value === 'auto') root.removeAttribute('data-theme')
-  else root.setAttribute('data-theme', themePref.value)
-  // Match the browser/OS chrome (address bar, installed-app title bar) to the page.
-  const bg = getComputedStyle(root).getPropertyValue('--bg').trim()
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', bg)
+  root.setAttribute('data-theme', theme.value)
+  // Match the browser/OS chrome (address bar, installed-app title bar) to the header band.
+  const band = getComputedStyle(root).getPropertyValue('--band').trim()
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', band)
 }
 
-watch(themePref, (v) => {
-  try {
-    if (v === 'auto') localStorage.removeItem(KEY)
-    else localStorage.setItem(KEY, v)
-  } catch {
-    /* storage unavailable: preference lasts for this visit */
-  }
-  apply()
+watch(theme, apply)
+system.addEventListener('change', () => {
+  if (!chosen) theme.value = fromSystem()
 })
-dark.addEventListener('change', apply)
 apply()
 
-const order: ThemePref[] = ['auto', 'light', 'dark']
-export const cycleTheme = () => (themePref.value = order[(order.indexOf(themePref.value) + 1) % order.length])
+export function setTheme(t: Theme) {
+  chosen = t
+  try {
+    localStorage.setItem(KEY, chosen)
+  } catch {
+    /* storage unavailable: choice lasts for this visit */
+  }
+  theme.value = chosen
+}
+
+export const toggleTheme = () => setTheme(theme.value === 'dark' ? 'light' : 'dark')

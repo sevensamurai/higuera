@@ -1,4 +1,6 @@
-export type BookingKind = 'tutoring' | 'freelance'
+// tutoring = a consultation on a new question; case = continuing a case. freelance ("research time")
+// is no longer offered when booking but still reads correctly on older bookings.
+export type BookingKind = 'tutoring' | 'case' | 'freelance'
 export type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'declined' | 'cancelled'
 export type PaymentStatus = 'pending' | 'paid'
 
@@ -25,6 +27,11 @@ export interface Booking {
   /** The student's display zone when they requested, so the tutor can see "their" time. */
   userTimeZone?: string
   kind: BookingKind
+  /**
+   * The case this session continues: the id of the case's first booking. Absent on a first session,
+   * whose own id names the case. A case is one research question worked on over several sessions.
+   */
+  caseId?: string
   /** The session's goal, e.g. "Prepare for the calculus midterm". Set by the student, editable by the tutor. */
   title: string
   /** Extra details the student gave when requesting. Ongoing discussion lives in SessionNote. */

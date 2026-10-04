@@ -76,7 +76,7 @@ const recent = computed(() => [...pending.value, ...[...sessions.value].sort(byS
 
   <template v-if="recent.length">
     <div class="section-head"><h2>{{ $t('studentDash.sessions') }}</h2><RouterLink to="/sessions" class="small">{{ $t('studentDash.allSessions') }}</RouterLink></div>
-    <SessionRow v-for="b in recent" :key="b.id" :booking="b" :tasks="tasks" />
+    <SessionRow v-for="b in recent" :key="b.id" :booking="b" :all="bookings" :tasks="tasks" />
   </template>
 
   <h2>{{ $t('studentDash.about') }}</h2>

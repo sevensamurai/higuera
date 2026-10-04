@@ -79,6 +79,8 @@ jobs:
       - run: npm run test:e2e
         env:
           E2E_SHOTS: ${{ github.workspace }}/e2e-shots
+      # The installed app must open with no network: a production build, signed in once, then offline.
+      - run: npm run test:offline
       # Screenshots of every step in light, dark and Spanish: handy for reviewing UI changes in a PR.
       - uses: actions/upload-artifact@v7
         if: always()

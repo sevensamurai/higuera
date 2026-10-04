@@ -28,6 +28,7 @@ function fromDoc(d: DocumentSnapshot): Booking {
     userName: x.userName,
     userEmail: x.userEmail,
     userTimeZone: x.userTimeZone,
+    caseId: x.caseId,
     kind: x.kind,
     title: x.title ?? '',
     notes: x.notes ?? '',
@@ -52,6 +53,8 @@ export async function requestBooking(input: {
   userName: string
   userEmail: string
   userTimeZone: string
+  /** Set when this request continues an existing case. */
+  caseId?: string
   kind: BookingKind
   title: string
   notes: string
@@ -64,6 +67,7 @@ export async function requestBooking(input: {
     userName: input.userName,
     userEmail: input.userEmail,
     userTimeZone: input.userTimeZone,
+    ...(input.caseId ? { caseId: input.caseId } : {}),
     kind: input.kind,
     title: input.title.trim(),
     notes: input.notes.trim(),
@@ -108,6 +112,20 @@ export async function confirmBooking(bookingId: string, option: SlotOption) {
     if (!s.exists() || s.data().status !== 'open') throw new Error(t('errors.slotTaken'))
     tx.update(sRef, { status: 'booked', bookingId })
     tx.update(bRef, { status: 'confirmed', confirmed: optionToDoc(option), updatedAt: serverTimestamp() })
+  })
+}
+
+/** Takes back a confirmation just made: the request is pending again and its slot open. */
+export async function undoConfirm(bookingId: string) {
+  await runTransaction(db, async (tx) => {
+    const bRef = doc(col, bookingId)
+    const b = await tx.get(bRef)
+    const slotId: string | undefined = b.data()?.confirmed?.slotId
+    if (b.data()?.status !== 'confirmed' || !slotId) return
+    const sRef = doc(db, 'slots', slotId)
+    const s = await tx.get(sRef)
+    if (s.exists() && s.data().bookingId === bookingId) tx.update(sRef, { status: 'open', bookingId: deleteField() })
+    tx.update(bRef, { status: 'pending', confirmed: deleteField(), updatedAt: serverTimestamp() })
   })
 }
 

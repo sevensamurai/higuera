@@ -5,26 +5,14 @@ import { useLive } from '@/live'
 import { createSlots, deleteSlot, planSlots, watchUpcomingSlots } from '@/services/slots'
 import { dayKey, fmtDay, fmtTime, tzLabel } from '@/format'
 import { intlLocale } from '@/i18n'
-import { saveTutorTimeZone, useZones } from '@/zones'
+import { useZones } from '@/zones'
 import type { Slot } from '@/types'
-import TimeZoneSelect from '@/components/TimeZoneSelect.vue'
+import TimeZoneNote from '@/components/TimeZoneNote.vue'
+import SlotCalendar from '@/components/SlotCalendar.vue'
 
 const { value: slots, loaded } = useLive<Slot[]>([], watchUpcomingSlots)
-const { tutorTz: tz, tutorTzSet, deviceTz } = useZones()
+const { tutorTz: tz } = useZones()
 const { t } = useI18n()
-
-// ---- the tutor's timezone ----
-const tzPick = ref(tz.value)
-watch(tz, (v) => (tzPick.value = v)) // the saved zone arrives after first render
-const tzSaving = ref(false)
-async function saveTz() {
-  tzSaving.value = true
-  try {
-    await saveTutorTimeZone(tzPick.value)
-  } finally {
-    tzSaving.value = false
-  }
-}
 
 const date = ref('')
 const from = ref('14:00')
@@ -36,6 +24,13 @@ const message = ref('')
 const overlaps = (start: Date, mins: number, s: Slot) =>
   start.getTime() < s.start.getTime() + s.durationMin * 60_000 && s.start.getTime() < start.getTime() + mins * 60_000
 
+// The day is picked on the calendar; this is how it reads back.
+const dateText = computed(() =>
+  new Intl.DateTimeFormat(intlLocale.value, { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(
+    new Date(`${date.value}T00:00Z`),
+  ),
+)
+
 const planned = computed(() => {
   if (!date.value || !from.value || !to.value) return []
   return planSlots(date.value, from.value, to.value, duration.value, tz.value).map((start) => ({
@@ -44,7 +39,18 @@ const planned = computed(() => {
     past: start.getTime() <= Date.now(),
   }))
 })
-const creatable = computed(() => planned.value.filter((p) => !p.clash && !p.past))
+// Slots the admin has unticked; every free slot in the window is ticked until said otherwise.
+const skipped = ref(new Set<number>())
+watch([date, from, to, duration], () => (skipped.value = new Set()))
+function toggle(p: { start: Date; clash: boolean; past: boolean }) {
+  if (p.clash || p.past) return
+  const next = new Set(skipped.value)
+  const k = p.start.getTime()
+  if (!next.delete(k)) next.add(k)
+  skipped.value = next
+}
+const isOn = (p: { start: Date; clash: boolean; past: boolean }) => !p.clash && !p.past && !skipped.value.has(p.start.getTime())
+const creatable = computed(() => planned.value.filter(isOn))
 
 async function create() {
   busy.value = true
@@ -53,25 +59,18 @@ async function create() {
     const starts = creatable.value.map((p) => p.start)
     await createSlots(starts, duration.value)
     message.value = t('availability.added', { n: starts.length })
-    date.value = ''
   } finally {
     busy.value = false
   }
 }
 
-const days = computed(() => {
-  const groups = new Map<string, { label: string; slots: Slot[] }>()
-  for (const s of slots.value) {
-    const k = dayKey(s.start, tz.value)
-    if (!groups.has(k)) groups.set(k, { label: fmtDay(s.start, tz.value), slots: [] })
-    groups.get(k)!.slots.push(s)
-  }
-  return [...groups.values()]
-})
+// Only the picked day's slots are listed; the calendar already shows every day's counts.
+const daySlots = computed(() => (date.value ? slots.value.filter((s) => dayKey(s.start, tz.value) === date.value) : []))
 
 async function remove(s: Slot) {
   if (confirm(t('availability.confirmRemove', { when: `${fmtDay(s.start, tz.value)} ${fmtTime(s.start, tz.value)}` }))) {
-    await deleteSlot(s.id)
+    // The rules refuse to delete a slot someone was confirmed into meanwhile.
+    await deleteSlot(s.id).catch(() => alert(t('errors.slotTaken')))
   }
 }
 </script>
@@ -79,28 +78,17 @@ async function remove(s: Slot) {
 <template>
   <h1>{{ $t('availability.title') }}</h1>
 
-  <div class="card stack">
-    <h3>{{ $t('availability.yourZone') }}</h3>
-    <p class="muted small">{{ $t('availability.zoneIntro') }}</p>
-    <div class="row">
-      <TimeZoneSelect v-model="tzPick" style="flex: 1; min-width: 220px" />
-      <button class="small" :disabled="tzSaving || (tutorTzSet && tzPick === tz)" @click="saveTz">
-        {{ tutorTzSet ? $t('common.save') : $t('common.confirm') }}
-      </button>
-    </div>
-    <p v-if="!tutorTzSet" class="small" style="color: var(--warn)">
-      {{ $t('availability.notSaved') }}
-    </p>
-    <p v-else-if="tz !== deviceTz" class="other-tz">
-      {{ $t('availability.deviceDiffers', { device: tzLabel(deviceTz), zone: tzLabel(tz) }) }}
-    </p>
-  </div>
+  <TimeZoneNote />
 
   <div class="card stack">
     <h3>{{ $t('availability.openTime') }}</h3>
     <p class="muted small">{{ $t('availability.openIntro', { zone: tzLabel(tz) }) }}</p>
+    <SlotCalendar v-model="date" :slots="slots" :tz="tz" />
     <div class="fields">
-      <label>{{ $t('common.date') }} <input type="date" v-model="date" /></label>
+      <div v-if="date" class="readonly-field">
+        <span>{{ $t('common.date') }}</span>
+        <output>{{ dateText }}</output>
+      </div>
       <label>{{ $t('availability.from') }} <input type="time" v-model="from" step="900" /></label>
       <label>{{ $t('availability.to') }} <input type="time" v-model="to" step="900" /></label>
       <label>
@@ -114,12 +102,16 @@ async function remove(s: Slot) {
         </select>
       </label>
     </div>
-    <div v-if="planned.length" class="chips">
-      <span v-for="p in planned" :key="p.start.getTime()" class="chip" :class="{ taken: p.clash || p.past }"
-        :title="p.clash ? $t('availability.overlaps') : p.past ? $t('availability.inPast') : ''">
-        {{ fmtTime(p.start, tz) }}
-      </span>
-    </div>
+    <template v-if="planned.length">
+      <p class="muted small">{{ $t('availability.pickSlots') }}</p>
+      <div class="chips">
+        <button v-for="p in planned" :key="p.start.getTime()" type="button" class="chip"
+          :class="{ on: isOn(p), taken: p.clash || p.past }" :disabled="p.clash || p.past" :aria-pressed="isOn(p)"
+          :title="p.clash ? $t('availability.overlaps') : p.past ? $t('availability.inPast') : ''" @click="toggle(p)">
+          {{ fmtTime(p.start, tz) }}
+        </button>
+      </div>
+    </template>
     <p v-else-if="date" class="muted small">{{ $t('availability.tooShort') }}</p>
     <div class="row">
       <button :disabled="busy || creatable.length === 0" @click="create">
@@ -129,17 +121,16 @@ async function remove(s: Slot) {
     </div>
   </div>
 
-  <h2>{{ $t('availability.upcoming') }} <span class="other-tz">· {{ tzLabel(tz) }}</span></h2>
-  <p v-if="!loaded" class="muted">{{ $t('common.loading') }}</p>
-  <p v-else-if="days.length === 0" class="muted">{{ $t('availability.none') }}</p>
-  <div v-for="d in days" :key="d.label" class="day">
-    <h3>{{ d.label }}</h3>
-    <div class="chips">
-      <span v-for="s in d.slots" :key="s.id" class="chip row">
+  <template v-if="date">
+    <h2>{{ $t('availability.onDay', { day: dateText }) }} <span class="other-tz">· {{ tzLabel(tz) }}</span></h2>
+    <p v-if="!loaded" class="muted">{{ $t('common.loading') }}</p>
+    <p v-else-if="daySlots.length === 0" class="muted">{{ $t('availability.noneOnDay') }}</p>
+    <div v-else class="chips">
+      <span v-for="s in daySlots" :key="s.id" class="chip row">
         {{ fmtTime(s.start, tz) }} <span class="muted small">{{ s.durationMin }}m</span>
         <span v-if="s.status === 'booked'" class="badge">{{ $t('availability.booked') }}</span>
         <button v-else class="link small" :title="$t('common.remove')" :aria-label="$t('common.remove')" @click="remove(s)">✕</button>
       </span>
     </div>
-  </div>
+  </template>
 </template>

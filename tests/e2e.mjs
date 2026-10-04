@@ -58,13 +58,20 @@ await fetch(`${FS}/admins/${tutorUid}`, {
 await tutor.reload()
 await tutor.waitForSelector('h1:has-text("Dashboard")')
 
-step('tutor confirms timezone and opens 14:00–17:00 Santiago, 10 days out')
+step('tutor confirms timezone in Settings and opens 14:00–17:00 Santiago, 10 days out')
 await tutor.goto(BASE + '/admin/availability')
+await tutor.click('a:has-text("Confirm it in Settings")')
+await tutor.waitForURL(BASE + '/settings')
 await tutor.click('button:has-text("Confirm")')
 await tutor.waitForSelector('text=Not saved yet', { state: 'detached' })
+await shot(tutor, '00-tutor-settings')
+await tutor.goto(BASE + '/admin/availability')
 // Always a future day (10 days out), so the test doesn't expire.
 const slotDay = new Date(Date.now() + 10 * 86_400_000).toISOString().slice(0, 10)
-await tutor.fill('input[type=date]', slotDay)
+await tutor.waitForSelector('.cal-day')
+for (let i = 0; i < 2 && !(await tutor.locator(`[data-day="${slotDay}"]`).count()); i++) await tutor.click('button[aria-label="Next month"]')
+await tutor.click(`[data-day="${slotDay}"]`)
+console.log('  picked day reads:', await tutor.locator('.readonly-field output').innerText())
 await tutor.fill('input[type=time] >> nth=0', '14:00')
 await tutor.fill('input[type=time] >> nth=1', '17:00')
 await tutor.click('button:has-text("Add 3 slots")')
@@ -84,11 +91,35 @@ await shot(student, '03-student-book')
 await student.click('button:has-text("Request")')
 await student.waitForURL(BASE + '/')
 
-step('tutor confirms the first option')
+step('a second client asks only for 15:00, which Sam has as his second choice')
+const carlaCtx = await context('America/Mexico_City', { width: 420, height: 900 })
+const carla = await signIn(carlaCtx, 'carla@example.com', 'Carla Client')
+await carla.goto(BASE + '/book')
+await carla.waitForSelector('.chip')
+await carla.fill('input[placeholder^="e.g. Who were"]', 'Baptism records in Talca')
+await carla.click('.chip >> nth=1')
+await carla.click('button:has-text("Request")')
+await carla.waitForURL(BASE + '/')
+
+step('tutor sorts out the clash on the requests calendar, with an undo on the way')
 await tutor.goto(BASE + '/admin/requests')
-await tutor.waitForSelector('button:has-text("Confirm this")')
+await tutor.waitForSelector('.contenders li')
+console.log('  day opened on its own:', await tutor.locator('h2 >> nth=0').innerText())
+console.log('  calendar marks:', (await tutor.locator('.cal-day.on .cal-marks').innerText()).replace(/\s+/g, ' '))
+for (const card of await tutor.locator('section.card:has(.contenders)').all()) {
+  console.log('  ', (await card.innerText()).replace(/\n+/g, ' | '))
+}
 await shot(tutor, '04-tutor-requests')
-await tutor.click('button:has-text("Confirm this") >> nth=0')
+await tutor.click('.contenders li.suggested button') // Carla: 15:00 is her only option
+await tutor.waitForSelector('.toast')
+console.log('  toast:', (await tutor.locator('.toast').innerText()).replace(/\s+/g, ' '))
+await tutor.click('.toast button') // undo
+await tutor.waitForSelector('.contenders li.suggested')
+console.log('  undo puts Carla back as suggested:', await tutor.locator('.contenders li.suggested strong >> nth=0').innerText())
+await tutor.click('.contenders li.suggested button')
+await tutor.waitForSelector('.contenders li.suggested', { state: 'detached' })
+console.log('  Sam left with:', (await tutor.locator('section.card:has(.contenders) h3').allInnerTexts()).join(', '))
+await tutor.click('.contenders li button') // Sam at 14:00
 await tutor.waitForSelector('text=No requests waiting')
 
 step('tutor works the session: tasks, note, payment')
@@ -128,7 +159,7 @@ step('tutor dashboard and student page')
 await tutor.goto(BASE + '/')
 await tutor.waitForSelector('a.card[href^="/admin/students/"]')
 await shot(tutor, '08-tutor-dashboard')
-await tutor.click('a.card[href^="/admin/students/"]')
+await tutor.click('a.card[href^="/admin/students/"]:has-text("Sam Student")')
 await tutor.waitForSelector('h1:has-text("Sam Student")')
 await shot(tutor, '09-tutor-student')
 
@@ -142,10 +173,11 @@ for (const [page, name] of [[student, 'student'], [tutor, 'tutor']]) {
   await page.waitForSelector('.note')
   await shot(page, `11-${name}-session-dark`)
 }
-const themes = []
-for (let i = 0; i < 3; i++) {
+// No saved choice yet, so the dark device setting applies; each click then flips and saves.
+const themes = [await student.evaluate(() => document.documentElement.dataset.theme)]
+for (let i = 0; i < 2; i++) {
   await student.click('button[aria-label^="Theme"]')
-  themes.push(await student.evaluate(() => document.documentElement.dataset.theme ?? 'auto'))
+  themes.push(await student.evaluate(() => document.documentElement.dataset.theme))
 }
 console.log('  theme toggle cycles:', themes.join(' → '))
 await student.click('button[aria-label^="Theme"]') // → light
@@ -177,6 +209,74 @@ console.log('  Spanish kept after reload:', await student.evaluate(() => documen
 await student.click('button[aria-label="Switch to English"]')
 await student.waitForFunction(() => document.documentElement.lang === 'en')
 console.log('  and back to English:', await student.locator('h2').first().innerText())
+
+step('student pins a timezone and a language in Settings, then follows the device again')
+await student.click('a[aria-label="Settings"]')
+await student.waitForSelector('h1:has-text("Settings")')
+await student.click('[role=combobox]')
+await student.keyboard.type('santi')
+console.log('  timezone search "santi":', await student.locator('[role=option] strong').allInnerTexts())
+await student.keyboard.type('ago chile')
+await student.keyboard.press('Enter')
+console.log('  picked:', await student.inputValue('[role=combobox]'))
+await student.click('button:has-text("Save")')
+await student.waitForSelector('text=Use device time')
+await shot(student, '16-student-settings')
+await student.goto(BASE + '/sessions')
+console.log('  sessions page zone line:', await student.locator('.tz-note').innerText())
+await student.goto(BASE + '/settings')
+await student.click('button:has-text("Español")')
+await student.waitForFunction(() => document.documentElement.lang === 'es')
+await student.click('button:has-text("Usar la hora del dispositivo")')
+await student.waitForSelector('text=Siguiendo a este dispositivo')
+await student.click('button:has-text("English")')
+await student.waitForFunction(() => document.documentElement.lang === 'en')
+
+step('student continues the case with a follow-up session; the researcher sees it as one')
+await student.goto(sessionUrl)
+await student.click('a:has-text("Book a follow-up session")')
+await student.waitForSelector('.chip')
+console.log('  book page preselects:', await student.locator('.segmented button.on').innerText(), '·', await student.locator('select >> nth=0').evaluate((s) => s.selectedOptions[0].text))
+console.log('  question prefilled:', await student.inputValue('input[maxlength="120"]'))
+await student.click('.chip:not([disabled]) >> nth=0')
+await shot(student, '17-student-follow-up')
+await student.click('button:has-text("Request")')
+await student.waitForURL(BASE + '/')
+await tutor.goto(BASE + '/admin/requests')
+await tutor.waitForSelector('.contenders .badge.warn') // the calendar marks it a follow-up too
+await tutor.click('[data-view=list]')
+await tutor.waitForSelector('p:has(.badge.warn)') // the tutor is still in Spanish here
+console.log('  request shows:', (await tutor.locator('p:has(.badge.warn)').innerText()).replace(/\s+/g, ' '))
+await shot(tutor, '18-tutor-follow-up-request')
+await student.goto(sessionUrl)
+await student.waitForSelector('.case-list li >> nth=1')
+console.log('  case on the first session:', (await student.locator('.case-list').innerText()).replace(/\n/g, ' | '))
+await shot(student, '19-student-case')
+
+step('tutor looks a client up by name on the sessions page')
+await tutor.goto(BASE + '/admin/sessions')
+await tutor.fill('input[type=search]', 'carla')
+await tutor.waitForSelector('.client-chip')
+console.log('  search "carla":', await tutor.locator('.client-chip').allInnerTexts(), '·', await tutor.locator('a.card h3').allInnerTexts())
+await tutor.fill('input[type=search]', 'MARÍA silva')
+await tutor.waitForFunction(() => document.querySelectorAll('a.card').length === 1)
+console.log('  search by question, accents ignored:', await tutor.locator('a.card h3').allInnerTexts())
+await shot(tutor, '20-tutor-search')
+
+step('an admin signing in never sees client screens on the way to their dashboard')
+await tutor.goto(BASE + '/')
+await tutor.click('.who button.link') // sign out
+await tutor.waitForSelector('.hero')
+await tutor.evaluate(() => {
+  window.__sawClient = false
+  // Any link to /book (client dashboard or client nav) means the wrong role was shown, if only briefly.
+  new MutationObserver(() => document.querySelector('a[href="/book"]') && (window.__sawClient = true))
+    .observe(document.body, { childList: true, subtree: true })
+})
+await tutor.evaluate(() => window.__e2eSignIn('tess@example.com', 'Tess Tutor'))
+await tutor.waitForSelector('.grid-stats a[href="/admin/requests"]')
+if (await tutor.evaluate(() => window.__sawClient)) throw new Error('admin briefly saw client screens while signing in')
+console.log('  no client screens on the way')
 
 await browser.close()
 console.log(errors.length ? `console errors:\n${errors.join('\n')}` : 'no console errors')

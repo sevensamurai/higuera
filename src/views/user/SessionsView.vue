@@ -29,18 +29,18 @@ const closed = computed(() => bookings.value.filter((b) => b.status === 'decline
 
   <template v-if="upcoming.length">
     <h2>{{ $t('mySessions.upcoming') }}</h2>
-    <SessionRow v-for="b in upcoming" :key="b.id" :booking="b" :tasks="tasks" />
+    <SessionRow v-for="b in upcoming" :key="b.id" :booking="b" :all="bookings" :tasks="tasks" />
   </template>
   <template v-if="requests.length">
     <h2>{{ $t('mySessions.awaiting') }}</h2>
-    <SessionRow v-for="b in requests" :key="b.id" :booking="b" />
+    <SessionRow v-for="b in requests" :key="b.id" :booking="b" :all="bookings" />
   </template>
   <template v-if="past.length">
     <h2>{{ $t('mySessions.past') }}</h2>
-    <SessionRow v-for="b in past" :key="b.id" :booking="b" :tasks="tasks" />
+    <SessionRow v-for="b in past" :key="b.id" :booking="b" :all="bookings" :tasks="tasks" />
   </template>
   <template v-if="closed.length">
     <h2>{{ $t('mySessions.closed') }}</h2>
-    <SessionRow v-for="b in closed" :key="b.id" :booking="b" />
+    <SessionRow v-for="b in closed" :key="b.id" :booking="b" :all="bookings" />
   </template>
 </template>

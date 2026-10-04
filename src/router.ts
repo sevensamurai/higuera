@@ -17,6 +17,7 @@ const router = createRouter({
     { path: '/sessions', name: 'sessions', component: () => import('./views/user/SessionsView.vue'), meta: { auth: 'user' } },
     // One page per session for both lanes; firestore.rules limit students to their own.
     { path: '/sessions/:id', name: 'session', component: () => import('./views/SessionDetailView.vue'), meta: { auth: 'user' } },
+    { path: '/settings', name: 'settings', component: () => import('./views/SettingsView.vue'), meta: { auth: 'user' } },
     { path: '/tasks', name: 'tasks', component: () => import('./views/user/TasksView.vue'), meta: { auth: 'user' } },
 
     { path: '/admin', redirect: '/' },

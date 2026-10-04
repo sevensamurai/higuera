@@ -49,7 +49,7 @@ const doneTasks = computed(() => tasks.value.filter((t) => t.status === 'done'))
 
     <h2>{{ $t('client.sessions') }}</h2>
     <p v-if="bookings.length === 0" class="muted">{{ $t('client.noSessions') }}</p>
-    <SessionRow v-for="b in bookings" :key="b.id" :booking="b" :tasks="tasks" />
+    <SessionRow v-for="b in bookings" :key="b.id" :booking="b" :all="allBookings" :tasks="tasks" />
 
     <div class="section-head">
       <h2>{{ $t('client.checklist') }}</h2>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onScopeDispose, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/auth'
 import { useLive } from '@/live'
@@ -11,9 +11,11 @@ import {
   setPayment,
   updateTitle,
   watchBooking,
+  watchMyBookings,
   withdrawRequest,
 } from '@/services/bookings'
-import { isSession, sessionTitle } from '@/progress'
+import type { Unsubscribe } from '@/services/util'
+import { caseBookings, caseKey, isSession, sessionTitle } from '@/progress'
 import { fmtDate, fmtSlot, tzOffset } from '@/format'
 import type { Booking } from '@/types'
 import { useI18n } from 'vue-i18n'
@@ -32,6 +34,21 @@ const id = route.params.id as string
 
 const { value: booking, loaded } = useLive<Booking | null>(null, (set) => watchBooking(id, set))
 const back = computed(() => (auth.isAdmin ? '/admin/sessions' : '/sessions'))
+
+// The client's other bookings, to show this session's place in its case.
+const theirs = ref<Booking[]>([])
+let stopTheirs: Unsubscribe | undefined
+watch(
+  () => booking.value?.userId,
+  (uid) => {
+    stopTheirs?.()
+    stopTheirs = uid ? watchMyBookings(uid, (v) => (theirs.value = v)) : undefined
+  },
+)
+onScopeDispose(() => stopTheirs?.())
+const inCase = computed(() => (booking.value ? caseBookings(theirs.value, booking.value) : []))
+const canContinue = computed(() => !auth.isAdmin && !!booking.value && isSession(booking.value))
+const whenOf = (b: Booking) => (b.confirmed ? fmtSlot(b.confirmed.start, b.confirmed.durationMin, tz.value) : t('session.proposed', b.options.length))
 
 // Tutor-editable fields. Each is re-seeded only when its own stored value changes, so toggling
 // payment (which rewrites the doc) doesn't wipe an unsaved summary.
@@ -118,11 +135,32 @@ async function withdraw() {
       </template>
 
       <p v-if="booking.adminNote" class="prewrap small"><strong>{{ $t('session.researcherSays') }}</strong> {{ booking.adminNote }}</p>
+      <div v-if="!auth.isAdmin && booking.status === 'declined'">
+        <RouterLink :to="`/book?again=${booking.id}`" class="btn small">{{ $t('session.bookAgain') }}</RouterLink>
+      </div>
       <template v-if="booking.notes">
         <p class="small muted">{{ $t('session.requestDetails') }}</p>
         <p class="prewrap">{{ booking.notes }}</p>
       </template>
     </section>
+
+    <!-- Case: the other sessions on this question, and booking the next one -->
+    <template v-if="inCase.length > 1 || canContinue">
+      <h2>{{ $t('case.title') }}</h2>
+      <section class="card stack">
+        <ol v-if="inCase.length > 1" class="case-list">
+          <li v-for="b in inCase" :key="b.id" :class="{ here: b.id === booking.id }">
+            <RouterLink v-if="b.id !== booking.id" :to="`/sessions/${b.id}`">{{ whenOf(b) }}</RouterLink>
+            <span v-else>{{ whenOf(b) }} · {{ $t('case.thisSession') }}</span>
+            <StatusBadge :status="b.status" />
+          </li>
+        </ol>
+        <div v-if="canContinue" class="row" style="justify-content: space-between">
+          <p class="small muted">{{ $t('case.continueHint') }}</p>
+          <RouterLink :to="`/book?case=${caseKey(booking)}`" class="btn small">{{ $t('case.continue') }}</RouterLink>
+        </div>
+      </section>
+    </template>
 
     <!-- Tasks (only once it's a real session) -->
     <template v-if="isSession(booking)">

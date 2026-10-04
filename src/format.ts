@@ -28,6 +28,19 @@ export const tzOffset = (tz: string, at: Date = new Date()) =>
 export const tzLabel = (tz: string, at: Date = new Date()) =>
   `${tz.split('/').pop()!.replace(/_/g, ' ')} (${tzOffset(tz, at)})`
 
+/** "2 hours ago", "in 3 days": relative to now, in the UI's language. */
+export function fmtAgo(d: Date, now = Date.now()) {
+  const rtf = new Intl.RelativeTimeFormat(intlLocale.value, { numeric: 'auto' })
+  const s = (d.getTime() - now) / 1000
+  for (const [unit, secs] of [['day', 86_400], ['hour', 3_600], ['minute', 60]] as const) {
+    if (Math.abs(s) >= secs) return rtf.format(Math.round(s / secs), unit)
+  }
+  return rtf.format(0, 'minute')
+}
+
+/** Accent- and case-insensitive form of a string, for searching names and places. */
+export const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+
 /** Local calendar day key, for grouping slots by the viewer's day. */
 export const dayKey = (d: Date, tz: string) => dayIn(d, tz)
 
